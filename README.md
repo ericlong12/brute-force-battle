@@ -82,3 +82,30 @@ GitHub: https://github.com/ericlong12/brute-force-battle
 ## Notes
 
 All simulations are mathematical/educational approximations, not real password cracking. Please use responsibly.
+
+
+## Summary of Activities and Contributions
+
+### What we finished
+
+- Design & Planning
+  - Finalized scope: math-based simulation
+  - Created presets/demos
+  - Sketched UI: tabs for Live Attack, Defender Controls, Hash Lab, Scenarios
+
+- Math & Modeling
+  - Derived probability-of-success vs guesses curves for brute force and dictionary models
+  - Drafted formulas for expected trials (≈ N/2) and T50/T95
+  - Outlined approximations for online attempts
+
+- Engineering
+  - Created the project repo on GitHub
+  - Implemented a working probability curve prototype
+  - Includes adjustable parameters: alphabet size, length, guesses/sec
+  - Added hash presets scaffolding
+
+- Content
+  - Collected key references: RFC 9106 (Argon2), bcrypt paper, rainbow vs. salt explainer notes
+
+- Demo Assets
+  - Captured early screenshots of the curve and parameter controls
