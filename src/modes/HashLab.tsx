@@ -1,57 +1,49 @@
-import { useMemo, useState } from 'react'
-import { HASH_PRESETS } from '../lib/hashPresets'
-import { keyspace, tForTargetBruteforce, formatNumber } from '../lib/models'
+import { useState, useEffect } from 'react';
+import { simulate, formatNumber, formatSeconds } from '../lib/models';
+import type { SimulationResult } from '../lib/models';
+import { hashPresets } from '../lib/hashPresets';
 
-export default function HashLab() {
-  const [alphabet, setAlphabet] = useState(62)
-  const [length, setLength] = useState(10)
-  const [presetId, setPresetId] = useState(HASH_PRESETS[0].id)
-  const preset = HASH_PRESETS.find((p) => p.id === presetId)!
+interface Row { p: typeof hashPresets[number]; sim: SimulationResult; }
 
-  const N = useMemo(() => keyspace(alphabet, length), [alphabet, length])
-  const t50 = useMemo(() => tForTargetBruteforce(0.5, N, preset.guessesPerSec), [N, preset])
-  const t95 = useMemo(() => tForTargetBruteforce(0.95, N, preset.guessesPerSec), [N, preset])
+export function HashLab() {
+  const [length, setLength] = useState(10);
+  const [alphabetSize, setAlphabetSize] = useState(62);
+  const [parallelism, setParallelism] = useState(8);
+  const [rows, setRows] = useState<Row[]>([]);
+
+  useEffect(() => {
+    const model = { mode: 'length', length, alphabetSize } as any;
+    const r = hashPresets.map(p => {
+      const sim = simulate({ context: 'offline', password: model, hashPreset: p, defender: { rateLimitPerMinute: 0, lockoutThreshold: 0, lockoutSeconds: 0, mfaEnabled: false, mfaBypassProbability: 1 }, maxSeconds: 5, points: 5, attackerParallelism: parallelism });
+      return { p, sim };
+    });
+    setRows(r);
+  }, [length, alphabetSize, parallelism]);
 
   return (
-    <section>
-      <h2 style={{ marginTop: 0 }}>Hash Lab</h2>
-      <div style={row}>
-        <label>
-          Preset:
-          <select value={presetId} onChange={(e) => setPresetId(e.target.value)} style={select}>
-            {HASH_PRESETS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div style={statBox}>Demo guesses/sec: {formatNumber(preset.guessesPerSec)}</div>
+    <div className="fade-in">
+      <h2>Hash Lab</h2>
+      <div className="header-desc">Compare different hash/KDF presets side-by-side for the same password model.</div>
+      <div className="controls-row">
+        <div className="field"><label>Length</label><input type="number" value={length} min={1} onChange={e => setLength(Number(e.target.value))} /></div>
+        <div className="field"><label>Alphabet Size</label><input type="number" value={alphabetSize} min={2} onChange={e => setAlphabetSize(Number(e.target.value))} /></div>
+        <div className="field"><label>Parallel Rigs</label><input type="number" value={parallelism} min={1} onChange={e => setParallelism(Number(e.target.value))} /></div>
       </div>
-
-      {preset.notes && <p style={{ color: '#666' }}>{preset.notes}</p>}
-
-      <div style={row}>
-        <label>
-          Alphabet size:
-          <input type="number" value={alphabet} onChange={(e) => setAlphabet(Number(e.target.value) || 0)} style={input} />
-        </label>
-        <label>
-          Length:
-          <input type="number" value={length} onChange={(e) => setLength(Number(e.target.value) || 0)} style={input} />
-        </label>
-        <div style={statBox}>Keyspace N = {formatNumber(N)}</div>
+      <div className="card-grid">
+        {rows.map(r => (
+          <div className="card" key={r.p.id}>
+            <h3>{r.p.name}</h3>
+            <div style={{ fontSize: '.75rem', color: 'var(--text-light)' }}>{r.p.description}</div>
+            {r.p.kdfCostNote && <div className="note">{r.p.kdfCostNote}</div>}
+            <div className="inline-stats">
+              <div className="stat-box"><strong>G/s</strong><span>{formatNumber(r.sim.effectiveGuessesPerSecond)}</span></div>
+              <div className="stat-box"><strong>T50</strong><span>{formatSeconds(r.sim.t50)}</span></div>
+              <div className="stat-box"><strong>T95</strong><span>{formatSeconds(r.sim.t95)}</span></div>
+            </div>
+          </div>
+        ))}
       </div>
-
-      <div style={{ ...row, marginTop: 12 }}>
-        <div style={statBox}>T50: {t50 ? `${formatNumber(t50)} s` : 'N/A'}</div>
-        <div style={statBox}>T95: {t95 ? `${formatNumber(t95)} s` : 'N/A'}</div>
-      </div>
-    </section>
-  )
+      <div className="note">Slower & memory-hard functions reduce guesses/sec, increasing T50/T95.</div>
+    </div>
+  );
 }
-
-const row = { display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 } as const
-const input = { padding: '6px 8px', width: 140 } as const
-const select = { padding: '6px 8px' } as const
-const statBox = { padding: '6px 10px', border: '1px solid #eee', borderRadius: 8, background: '#f8f9fa' } as const

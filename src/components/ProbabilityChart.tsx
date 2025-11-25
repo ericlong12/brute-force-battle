@@ -1,71 +1,54 @@
-import { Line } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  LineElement,
-  PointElement,
-  LinearScale,
-  CategoryScale,
-  Tooltip,
-  Legend,
-} from 'chart.js'
+import { useEffect, useRef } from 'react'
+import { Chart, LineController, LineElement, PointElement, LinearScale, Title, Tooltip, Filler } from 'chart.js'
+import type { SimulationResult } from '../lib/models'
 
-ChartJS.register(LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend)
+Chart.register(LineController, LineElement, PointElement, LinearScale, Title, Tooltip, Filler)
 
-export type Series = {
-  label: string
-  color?: string
-  t: number[]
-  p: number[]
+interface Props {
+  result: SimulationResult | null
 }
 
-type Props = {
-  series: Series[]
-  height?: number
-}
+export function ProbabilityChart({ result }: Props) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const chartRef = useRef<Chart | null>(null)
 
-export default function ProbabilityChart({ series, height = 280 }: Props) {
-  const labels = series[0]?.t ?? []
-  const data = {
-    labels,
-    datasets: series.map((s) => ({
-      label: s.label,
-      data: s.p,
-      borderColor: s.color ?? '#0d6efd',
-      backgroundColor: s.color ?? '#0d6efd',
-      pointRadius: 0,
-      borderWidth: 2,
-      tension: 0.15,
-    })),
-  }
-
-  const options = {
-    responsive: true,
-    maintainAspectRatio: false,
-    scales: {
-      x: {
-        title: { display: true, text: 'Time (seconds)' },
-        ticks: { maxTicksLimit: 8 },
-      },
-      y: {
-        min: 0,
-        max: 1,
-        title: { display: true, text: 'Success probability' },
-        ticks: { callback: (v: unknown) => `${v}` },
-      },
-    },
-    plugins: {
-      legend: { display: true },
-      tooltip: {
-        callbacks: {
-          label: (ctx: any) => `${ctx.dataset.label}: ${(ctx.parsed.y * 100).toFixed(2)}%`,
+  useEffect(() => {
+    if (!canvasRef.current) return
+    if (!result) return
+    const ctx = canvasRef.current.getContext('2d')
+    if (!ctx) return
+    const data = result.curve.map((p) => ({ x: p.t, y: p.pSuccess }))
+    if (!chartRef.current) {
+      chartRef.current = new Chart(ctx, {
+        type: 'line',
+        data: {
+          datasets: [
+            {
+              label: 'P(success) vs time',
+              data,
+              borderColor: 'rgba(13,110,253,0.9)',
+              backgroundColor: 'rgba(13,110,253,0.15)',
+              fill: 'origin',
+              pointRadius: 0,
+              tension: 0.12,
+            },
+          ],
         },
-      },
-    },
-  } as const
+        options: {
+          animation: false,
+          maintainAspectRatio: false,
+          scales: {
+            x: { type: 'linear', title: { display: true, text: 'Seconds' } },
+            y: { type: 'linear', min: 0, max: 1, title: { display: true, text: 'Probability' } },
+          },
+          plugins: { tooltip: { mode: 'index', intersect: false } },
+        },
+      })
+    } else {
+      chartRef.current.data.datasets[0].data = data as any
+      chartRef.current.update()
+    }
+  }, [result])
 
-  return (
-    <div style={{ height }}>
-      <Line data={data} options={options} />
-    </div>
-  )
+  return <div className="chart" style={{ height: 300 }}><canvas ref={canvasRef} /></div>
 }

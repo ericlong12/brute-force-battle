@@ -1,55 +1,69 @@
-import { useMemo } from 'react'
-import { HASH_PRESETS } from '../lib/hashPresets'
-import { keyspace, tForTargetBruteforce, formatNumber } from '../lib/models'
+import { useState } from 'react';
+import { simulate, formatNumber, formatSeconds } from '../lib/models';
+import type { SimulationResult } from '../lib/models';
+import { hashPresets } from '../lib/hashPresets';
+import { ProbabilityChart } from '../components/ProbabilityChart';
 
-type Scenario = {
-  title: string
-  alphabet: number
-  length: number
-  presetId: string
+interface ScenarioDef {
+  id: string;
+  name: string;
+  description: string;
+  params: {
+    context: 'offline' | 'online';
+    length: number;
+    alphabetSize: number;
+    presetId: string;
+    defender?: { rateLimitPerMinute: number; lockoutThreshold: number; lockoutSeconds: number; mfaEnabled: boolean; mfaBypassProbability: number; };
+    parallelism: number;
+    seconds: number;
+  };
 }
 
-const scenarios: Scenario[] = [
-  { title: 'Short mixed-char + fast hashing', alphabet: 62, length: 8, presetId: 'fast-md5' },
-  { title: 'Long passphrase + salted slow hashing', alphabet: 26 + 1 + 10, length: 16, presetId: 'argon2' },
-  { title: 'Online with slow hashing (conceptual)', alphabet: 62, length: 10, presetId: 'bcrypt-12' },
-]
+const scenarios: ScenarioDef[] = [
+  { id: 'short-fast', name: 'Short + Fast Hash (Offline)', description: '8-char mixed-case/digits with unsalted fast hash shows rapid compromise.', params: { context: 'offline', length: 8, alphabetSize: 62, presetId: 'md5', parallelism: 8, seconds: 30 } },
+  { id: 'long-slow', name: 'Long + Strong Argon2id', description: '14-char with memory-hard Argon2id strong settings greatly slows attack.', params: { context: 'offline', length: 14, alphabetSize: 62, presetId: 'argon2id_strong', parallelism: 8, seconds: 120 } },
+  { id: 'online-defended', name: 'Online with Rate Limit + MFA', description: '10-char password behind rate limits, lockouts & MFA reduces success dramatically.', params: { context: 'online', length: 10, alphabetSize: 62, presetId: 'bcrypt10', parallelism: 1, seconds: 3600, defender: { rateLimitPerMinute: 30, lockoutThreshold: 6, lockoutSeconds: 600, mfaEnabled: true, mfaBypassProbability: 0.005 } } },
+  { id: 'passphrase', name: '4-Word Passphrase vs Fast Hash', description: '2048-word list, 4 words. Keyspace 2048^4 exceeds short complex passwords.', params: { context: 'offline', length: 4, alphabetSize: 2048, presetId: 'sha256', parallelism: 4, seconds: 300 } },
+];
 
-export default function Scenarios() {
+export function Scenarios() {
+  const [selected, setSelected] = useState<ScenarioDef>(scenarios[0]);
+  const preset = hashPresets.find(p => p.id === selected.params.presetId)!;
+  const sim: SimulationResult = simulate({
+    context: selected.params.context,
+    password: { mode: 'length', length: selected.params.length, alphabetSize: selected.params.alphabetSize },
+    hashPreset: preset,
+    defender: selected.params.defender ?? { rateLimitPerMinute: 0, lockoutThreshold: 0, lockoutSeconds: 0, mfaEnabled: false, mfaBypassProbability: 1 },
+    maxSeconds: selected.params.seconds,
+    points: 150,
+    attackerParallelism: selected.params.parallelism,
+  });
+
   return (
-    <section>
-      <h2 style={{ marginTop: 0 }}>Scenarios</h2>
-      <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))' }}>
-        {scenarios.map((s) => (
-          <ScenarioCard key={s.title} scenario={s} />
+    <div className="fade-in">
+      <h2>Scenarios</h2>
+      <div className="header-desc">Preset situations demonstrating design choices and their impact on crack probability.</div>
+      <div className="card-grid" style={{ marginBottom: 16 }}>
+        {scenarios.map(s => (
+          <button key={s.id} className={`card mode-btn ${selected.id === s.id ? 'active' : ''}`} onClick={() => setSelected(s)}>{s.name}</button>
         ))}
       </div>
-      <p style={{ color: '#666', marginTop: 12 }}>
-        Times are rough, educational estimates using N = A^L and demo guesses/sec from presets.
-      </p>
-    </section>
-  )
-}
-
-function ScenarioCard({ scenario }: { scenario: Scenario }) {
-  const preset = HASH_PRESETS.find((p) => p.id === scenario.presetId)!
-  const N = useMemo(() => keyspace(scenario.alphabet, scenario.length), [scenario])
-  const t50 = useMemo(() => tForTargetBruteforce(0.5, N, preset.guessesPerSec), [N, preset])
-  const t95 = useMemo(() => tForTargetBruteforce(0.95, N, preset.guessesPerSec), [N, preset])
-
-  return (
-    <div style={card}>
-      <h3 style={{ margin: '0 0 6px' }}>{scenario.title}</h3>
-      <div style={{ color: '#555' }}>Alphabet: {scenario.alphabet} • Length: {scenario.length}</div>
-      <div style={{ color: '#555', marginBottom: 6 }}>Preset: {preset.label}</div>
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <div style={statBox}>N = {formatNumber(N)}</div>
-        <div style={statBox}>T50 = {t50 ? `${formatNumber(t50)} s` : 'N/A'}</div>
-        <div style={statBox}>T95 = {t95 ? `${formatNumber(t95)} s` : 'N/A'}</div>
+      <div className="card" style={{ marginBottom: 16 }}>
+        <h3>{selected.name}</h3>
+        <div style={{ fontSize: '.8rem', color: 'var(--text-light)' }}>{selected.description}</div>
+        <div className="inline-stats">
+          <div className="stat-box"><strong>Keyspace</strong><span>{formatNumber(sim.keyspace)}</span></div>
+          <div className="stat-box"><strong>T50</strong><span>{formatSeconds(sim.t50)}</span></div>
+          <div className="stat-box"><strong>T95</strong><span>{formatSeconds(sim.t95)}</span></div>
+          <div className="stat-box"><strong>G/sec</strong><span>{formatNumber(sim.effectiveGuessesPerSecond)}</span></div>
+        </div>
+        <ProbabilityChart result={sim} />
+        <div className="note">{sim.notes.join(' ')} Expected trials (no replacement) ≈ N/2; replacement model T50 ≈ N ln2 / G.</div>
+      </div>
+      <div className="card">
+        <h3>Rainbow Tables vs Unique Salts</h3>
+        <p style={{ fontSize: '.8rem', lineHeight: 1.4 }}>Rainbow tables precompute hashes for large password sets, enabling quick inversion of fast unsalted hashes. Unique per-user salts invalidate reuse: each account needs separate computation, exploding attacker cost. Slow or memory-hard KDFs (bcrypt, Argon2id) further reduce feasible guesses/sec, neutralizing rainbow advantages and forcing much slower brute-force or dictionary search.</p>
       </div>
     </div>
-  )
+  );
 }
-
-const card = { border: '1px solid #eee', borderRadius: 10, padding: 12, background: '#fff' } as const
-const statBox = { padding: '6px 10px', border: '1px solid #eee', borderRadius: 8, background: '#f8f9fa' } as const

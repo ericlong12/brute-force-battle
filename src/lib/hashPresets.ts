@@ -1,34 +1,51 @@
-export type HashPreset = {
-  id: string
-  label: string
-  guessesPerSec: number
-  notes?: string
-}
+import type { HashPreset } from './models';
 
-// Educational, order-of-magnitude demo values ONLY
-export const HASH_PRESETS: HashPreset[] = [
+export const hashPresets: HashPreset[] = [
   {
-    id: 'fast-md5',
-    label: 'Fast Hash (MD5/SHA1-like)',
-    guessesPerSec: 1e9,
-    notes: 'Fast unsalted hashing on capable hardware; demo-only speed.',
+    id: 'md5',
+    name: 'MD5 (fast, unsalted)',
+    hashPerSecond: 5e10,
+    description: 'Legacy fast hash. Enables huge offline throughput & rainbow tables.',
+    salt: false,
+    memoryHard: false,
   },
   {
-    id: 'bcrypt-12',
-    label: 'bcrypt (cost 12)',
-    guessesPerSec: 5e4,
-    notes: 'Slower, CPU-bound; ballpark demo value.',
+    id: 'sha256',
+    name: 'SHA-256 (fast, salted)',
+    hashPerSecond: 2e10,
+    description: 'Fast cryptographic hash with per-user salt (still high speed).',
+    salt: true,
+    memoryHard: false,
   },
   {
-    id: 'argon2',
-    label: 'Argon2 (mem-hard)',
-    guessesPerSec: 2e3,
-    notes: 'Memory-hard KDF; demo value depends on memory/time params.',
+    id: 'bcrypt10',
+    name: 'bcrypt cost=10',
+    hashPerSecond: 5e3,
+    description: 'Adaptive password hash. Salted & intentionally slow.',
+    salt: true,
+    memoryHard: false,
+    kdfCostNote: 'Cost factor 10 ~ 5k hashes/sec on single GPU (approx).',
   },
   {
-    id: 'pbkdf2-310k',
-    label: 'PBKDF2 ~310k iters',
-    guessesPerSec: 2e4,
-    notes: 'Typical PBKDF2 with high iterations; demo-only.',
+    id: 'argon2id_mod',
+    name: 'Argon2id (moderate)',
+    hashPerSecond: 1e4,
+    description: 'Memory-hard KDF with salt, moderate parameters.',
+    salt: true,
+    memoryHard: true,
+    kdfCostNote: '~10k H/s depending on memory (illustrative).',
   },
-]
+  {
+    id: 'argon2id_strong',
+    name: 'Argon2id (strong)',
+    hashPerSecond: 2e3,
+    description: 'Stronger memory/time params drastically slow attackers.',
+    salt: true,
+    memoryHard: true,
+    kdfCostNote: '~2k H/s strong params (illustrative).',
+  },
+];
+
+export function getPreset(id: string): HashPreset | undefined {
+  return hashPresets.find(p => p.id === id);
+}
