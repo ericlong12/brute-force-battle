@@ -48,6 +48,8 @@ export interface SimulationResult {
   notes: string[];
 }
 
+
+
 // Safe big power using exponentiation by squaring returning number (may overflow for huge N)
 function powInt(base: number, exp: number): number {
   if (exp <= 0) return 1;
@@ -87,13 +89,15 @@ function applyMfaProbability(pSuccess: number, params: SimulationParams): number
   return pSuccess * params.defender.mfaBypassProbability;
 }
 
+
+
 export function simulate(params: SimulationParams): SimulationResult {
   const keyspace = computeKeyspace(params.password);
   const notes: string[] = [];
   if (keyspace === 0) return { keyspace, expectedTrialsNoReplacement: 0, expectedTrialsReplacement: 0, t50: 0, t95: 0, curve: [], effectiveGuessesPerSecond: 0, notes: ['Invalid keyspace'] };
 
   const gPerSecBase = params.context === 'offline' ? offlineSpeed(params) : onlineSpeed(params);
-  let gPerSec = gPerSecBase;
+  const gPerSec = applyMfaProbability(gPerSecBase, params);
   if (!params.hashPreset.salt) notes.push('No salt: same hash across users enables rainbow tables (if hash is fast).');
   else notes.push('Salted: unique per-user salts defeat precomputed rainbow tables.');
   if (params.hashPreset.memoryHard) notes.push('Memory-hard KDF slows parallel GPUs/ASICs.');
@@ -105,8 +109,16 @@ export function simulate(params: SimulationParams): SimulationResult {
   // Time for 50% & 95% using Poisson approximation (replacement model)
   const g50 = keyspace * Math.log(2); // N ln2
   const g95 = keyspace * Math.log(20); // N ln20 ~ 2.9957N
+
   const t50 = g50 / gPerSec;
   const t95 = g95 / gPerSec;
+
+  
+
+
+  
+
+
 
   const curve: SimulationPoint[] = [];
   const dt = params.maxSeconds / params.points;
