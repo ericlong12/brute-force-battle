@@ -38,6 +38,12 @@ export function LiveAttack() {
   return () => clearInterval(id);
   }, [result]);
 
+  
+  useEffect(() => {
+    setElapsed(0);
+  }, [length, alphabetChoice, presetId, parallelism]);
+    
+
 
   useEffect(() => {
     const preset = hashPresets.find((p) => p.id === presetId)!;
