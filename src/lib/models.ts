@@ -45,8 +45,6 @@ export interface SimulationResult {
   t95: number;
   curve: SimulationPoint[];
   effectiveGuessesPerSecond: number;
-  currentGuesses: number;
-  successBoolean: boolean;
   notes: string[];
 }
 
@@ -94,10 +92,10 @@ function applyMfaProbability(pSuccess: number, params: SimulationParams): number
 export function simulate(params: SimulationParams): SimulationResult {
   const keyspace = computeKeyspace(params.password);
   const notes: string[] = [];
-  if (keyspace === 0) return { keyspace, expectedTrialsNoReplacement: 0, expectedTrialsReplacement: 0, t50: 0, t95: 0, curve: [], effectiveGuessesPerSecond: 0, currentGuesses: 0, successBoolean: false, notes: ['Invalid keyspace'] };
+  if (keyspace === 0) return { keyspace, expectedTrialsNoReplacement: 0, expectedTrialsReplacement: 0, t50: 0, t95: 0, curve: [], effectiveGuessesPerSecond: 0, notes: ['Invalid keyspace'] };
 
   const gPerSecBase = params.context === 'offline' ? offlineSpeed(params) : onlineSpeed(params);
-  const gPerSec = applyMfaProbability(gPerSecBase, params);
+  const gPerSec = gPerSecBase; // MFA affects success probability, not guess rate
   if (!params.hashPreset.salt) notes.push('No salt: same hash across users enables rainbow tables (if hash is fast).');
   else notes.push('Salted: unique per-user salts defeat precomputed rainbow tables.');
   if (params.hashPreset.memoryHard) notes.push('Memory-hard KDF slows parallel GPUs/ASICs.');
@@ -124,17 +122,6 @@ export function simulate(params: SimulationParams): SimulationResult {
     curve.push({ t, guesses, pSuccess: pAdj });
   }
 
-  const current = gPerSec * params.maxSeconds;
-  const pSuccess = 1 - Math.exp(-current / keyspace);
-  let success = Math.random() < pSuccess/2;
-
-
-  
-  if (current >= keyspace)  {
-    success = true; 
-  }
-  
-
   notes.push(`50% success without replacement ~ N/2; with replacement k50 ~ N ln2 ≈ ${(Math.log(2)).toFixed(3)}N; mean geometric trials is N.`);
   return {
     keyspace,
@@ -145,8 +132,6 @@ export function simulate(params: SimulationParams): SimulationResult {
     curve,
     effectiveGuessesPerSecond: gPerSec,
     notes,
-    currentGuesses: current,
-    successBoolean: success,
   };
 }
 
