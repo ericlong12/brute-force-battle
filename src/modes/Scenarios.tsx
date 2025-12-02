@@ -29,7 +29,8 @@ const scenarios: ScenarioDef[] = [
 export function Scenarios() {
   const [selected, setSelected] = useState<ScenarioDef>(scenarios[0]);
   const preset = hashPresets.find(p => p.id === selected.params.presetId)!;
-  const sim: SimulationResult = simulate({
+
+  const simInitial: SimulationResult = simulate({
     context: selected.params.context,
     password: { mode: 'length', length: selected.params.length, alphabetSize: selected.params.alphabetSize },
     hashPreset: preset,
@@ -38,6 +39,25 @@ export function Scenarios() {
     points: 150,
     attackerParallelism: selected.params.parallelism,
   });
+
+  const withinRange = simInitial.t95 && simInitial.t95 <= selected.params.seconds * 10;
+  const desiredSeconds = withinRange
+    ? Math.min(Math.max(selected.params.seconds, Math.ceil(simInitial.t95)), 31557600000)
+    : Math.min(selected.params.seconds * 10, 31557600000); // expand window so curve shows early growth
+
+  const sim: SimulationResult = simulate({
+    context: selected.params.context,
+    password: { mode: 'length', length: selected.params.length, alphabetSize: selected.params.alphabetSize },
+    hashPreset: preset,
+    defender: selected.params.defender ?? { rateLimitPerMinute: 0, lockoutThreshold: 0, lockoutSeconds: 0, mfaEnabled: false, mfaBypassProbability: 1 },
+    maxSeconds: desiredSeconds,
+    points: 150,
+    attackerParallelism: selected.params.parallelism,
+  });
+
+  const displayGsec = sim.effectiveGuessesPerSecond < 0.1
+    ? Number(sim.effectiveGuessesPerSecond.toFixed(3)).toString()
+    : formatNumber(sim.effectiveGuessesPerSecond);
 
   return (
     <div className="fade-in">
@@ -55,9 +75,12 @@ export function Scenarios() {
           <div className="stat-box"><strong>Keyspace</strong><span>{formatNumber(sim.keyspace)}</span></div>
           <div className="stat-box"><strong>T50</strong><span>{formatSeconds(sim.t50)}</span></div>
           <div className="stat-box"><strong>T95</strong><span>{formatSeconds(sim.t95)}</span></div>
-          <div className="stat-box"><strong>G/sec</strong><span>{formatNumber(sim.effectiveGuessesPerSecond)}</span></div>
+          <div className="stat-box"><strong>G/sec</strong><span>{displayGsec}</span></div>
         </div>
         <ProbabilityChart result={sim} />
+        {!withinRange && (
+          <div className="note">Timeline expanded to 10× scenario window to show early probability growth. T95 is far beyond range.</div>
+        )}
         <div className="note">{sim.notes.join(' ')} Expected trials (no replacement) ≈ N/2; replacement model T50 ≈ N ln2 / G.</div>
       </div>
       <div className="card">
