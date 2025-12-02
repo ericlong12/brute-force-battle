@@ -39,6 +39,8 @@ export function HashLab() {
               <div className="stat-box"><strong>G/s</strong><span>{formatNumber(r.sim.effectiveGuessesPerSecond)}</span></div>
               <div className="stat-box"><strong>T50</strong><span>{formatSeconds(r.sim.t50)}</span></div>
               <div className="stat-box"><strong>T95</strong><span>{formatSeconds(r.sim.t95)}</span></div>
+              <div className="stat-box"><strong>Current Guesses</strong><span>{formatNumber(r.sim.currentGuesses)}</span></div>
+              <div className="stat-box"><strong>T95</strong><span>{(r.sim.successBoolean)}</span></div>
             </div>
           </div>
         ))}

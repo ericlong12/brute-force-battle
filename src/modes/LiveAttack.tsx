@@ -11,6 +11,8 @@ export function LiveAttack() {
   const [parallelism, setParallelism] = useState(4);
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [elapsed, setElapsed] = useState(0); 
+  
 
   const alphabetSizes: Record<string, number> = {
     lower: 26,
@@ -20,6 +22,22 @@ export function LiveAttack() {
     printable: 94,
     words_2048: 2048,
   };
+
+  useEffect(() => {
+  const id = setInterval(() => {
+    setResult((prev) => {
+      if (prev?.successBoolean) {
+        clearInterval(id); // stop the timer
+        return prev;       // do not change
+      }
+      setElapsed((t) => t + 1);
+      return prev;
+    });
+  }, 1000);
+
+  return () => clearInterval(id);
+  }, [result]);
+
 
   useEffect(() => {
     const preset = hashPresets.find((p) => p.id === presetId)!;
@@ -32,12 +50,12 @@ export function LiveAttack() {
       password: passwordModel as any,
       hashPreset: preset,
       defender: { rateLimitPerMinute: 0, lockoutThreshold: 0, lockoutSeconds: 0, mfaEnabled: false, mfaBypassProbability: 1 },
-      maxSeconds: 60,
+      maxSeconds: elapsed,
       points: 120,
       attackerParallelism: parallelism,
     });
     setResult(sim);
-  }, [length, alphabetChoice, presetId, parallelism]);
+  }, [length, alphabetChoice, presetId, parallelism, elapsed]);
 
   return (
     <div className="fade-in">
@@ -100,6 +118,20 @@ export function LiveAttack() {
               <strong>G/s</strong>
               <span>{formatNumber(result.effectiveGuessesPerSecond)}</span>
             </div>
+            <div className="stat-box">
+              <strong>Current Guesses</strong>
+              <span>{formatNumber(result.currentGuesses)}</span>
+            </div>
+            <div className="stat-box">
+              <strong>Success</strong>
+              <span>{(result.successBoolean.toString())}</span>
+            </div>
+            <div className="field" style={{ alignSelf: 'flex-start' }}>
+                <label style={{ visibility: 'hidden' }}>Reset</label>
+                <button className="toggle-btn" onClick={() => setElapsed(0)}>
+                  Reset Timer
+                </button>
+              </div>
           </div>
           {showAdvanced && (
             <div className="inline-stats" style={{ marginTop: 4 }}>
@@ -112,6 +144,7 @@ export function LiveAttack() {
                 <span>{formatNumber(result.expectedTrialsReplacement)}</span>
               </div>
             </div>
+            
           )}
           <ProbabilityChart result={result} />
           <div className="inline-help">{result.notes.join(' ')} Offline brute force assumes full-speed guessing on extracted verifier.</div>
